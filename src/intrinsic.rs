@@ -429,6 +429,25 @@ pub trait EvalContextExt<'mir, 'tcx: 'mir>: crate::MiriEvalContextExt<'mir, 'tcx
                 )?;
             }
 
+            "unchecked_add" | "unchecked_sub" | "unchecked_mul" => {
+                let a = this.read_immediate(args[0])?;
+                let b = this.read_immediate(args[1])?;
+                let op = match intrinsic_name.get() {
+                    "unchecked_add" => mir::BinOp::Add,
+                    "unchecked_sub" => mir::BinOp::Sub,
+                    "unchecked_mul" => mir::BinOp::Mul,
+                    _ => bug!(),
+                };
+                let (val, overflowed) = this.binary_op(op, a, b, dest)?;
+                if overflowed {
+                    return err!(ValidationFailure(format!(
+                        "{}: {:?} of {:?} and {:?} overflowed",
+                        intrinsic_name.get(), op, a, b,
+                    )));
+                }
+                this.write_scalar(val, dest)?;
+            }
+
             "unchecked_div" => {
                 let l = this.read_immediate(args[0])?;
                 let r = this.read_immediate(args[1])?;
